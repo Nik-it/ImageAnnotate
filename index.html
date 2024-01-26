@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Browser App</title>
+    <title>Image Annotator App</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -12,7 +12,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            height: auto;
             background-color: #f5f5f5;
         }
 
@@ -34,18 +34,95 @@
         }
 
         .image-preview {
+            position: relative;
             margin-top: 20px;
         }
 
         img {
             max-width: 100%;
             height: auto;
+            cursor: crosshair;
         }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+        }
+
+        .controls {
+            margin-top: 10px;
+        }
+
+        .control-label {
+            margin-right: 10px;
+        }
+
+        .save-btn,
+        .clear-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .save-btn {
+            background-color: #27ae60;
+            color: #fff;
+        }
+
+        .clear-btn {
+            background-color: #e74c3c;
+            color: #fff;
+            margin-left: 10px;
+        }
+        @media screen and (max-width: 600px) {
+    body {
+        padding: 10px; /* Adjust the padding for small screens */
+    }
+
+    .container {
+        text-align: center;
+    }
+
+    .upload-btn {
+        padding: 8px 12px; /* Adjust button padding for small screens */
+    }
+
+    .image-preview {
+        margin-top: 10px; /* Adjust margin for the image preview */
+    }
+
+    img {
+        max-width: 100%;
+    }
+
+    canvas {
+        cursor: pointer;
+    }
+
+    .controls {
+        margin-top: 5px; /* Adjust margin for the controls */
+    }
+
+    .control-label {
+        margin-right: 5px; /* Adjust margin for control labels */
+    }
+
+    .save-btn,
+    .clear-btn {
+        padding: 6px 12px; /* Adjust button padding for small screens */
+        margin-top: 5px; /* Adjust margin for buttons */
+    }
+}
+
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Image Browser App</h1>
+        <h1>Image Annotator App</h1>
         <div class="upload-container">
             <label for="imageInput" class="upload-btn">
                 Choose Image
@@ -53,11 +130,35 @@
             <input type="file" id="imageInput" accept="image/*" style="display: none;">
         </div>
         <div class="image-preview" id="imagePreview"></div>
+
+        <div class="controls">
+            <label class="control-label" for="strokeStyleInput">Stroke Style:</label>
+            <input type="text" id="strokeStyleInput" placeholder="Enter stroke style">
+
+            <label class="control-label" for="lineWidthInput">Line Width:</label>
+            <input type="number" id="lineWidthInput" placeholder="Enter line width">
+        </div>
+
+        <button class="save-btn" id="saveAnnotationsButton">Save Annotations</button>
+        <button class="save-btn" id="saveImageButton">Save Image</button>
+        <button class="clear-btn" id="clearButton">Clear Annotations</button>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const imageInput = document.getElementById('imageInput');
             const imagePreview = document.getElementById('imagePreview');
+            const saveAnnotationsButton = document.getElementById('saveAnnotationsButton');
+            const saveImageButton = document.getElementById('saveImageButton');
+            const clearButton = document.getElementById('clearButton');
+            const strokeStyleInput = document.getElementById('strokeStyleInput');
+            const lineWidthInput = document.getElementById('lineWidthInput');
+            let isDrawing = false;
+            let image;
+            let annotations = [];
+            let activeSessionAnnotations = []; // Store points only during the active drawing session
+            let strokeStyle = '#ff0000'; // Default stroke style
+            let lineWidth = 2; // Default line width
+            let saveImageClicked = false;
 
             imageInput.addEventListener('change', function () {
                 const file = imageInput.files[0];
@@ -67,16 +168,192 @@
 
                     reader.onload = function (e) {
                         const imageUrl = e.target.result;
-                        const image = new Image();
+                        image = new Image();
                         image.src = imageUrl;
 
-                        imagePreview.innerHTML = '';
-                        imagePreview.appendChild(image);
+                        image.onload = function () {
+                            imagePreview.innerHTML = '';
+                            imagePreview.appendChild(image);
+
+                            const canvas = document.createElement('canvas');
+                            canvas.width = image.width;
+                            canvas.height = image.height;
+                            imagePreview.appendChild(canvas);
+
+                            const ctx = canvas.getContext('2d');
+
+                            loadAnnotations();
+
+                            canvas.addEventListener('mousedown', startDrawing);
+                            canvas.addEventListener('mousemove', draw);
+                            canvas.addEventListener('mouseup', stopDrawing);
+                            canvas.addEventListener('mouseout', stopDrawing);
+
+                            saveAnnotationsButton.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                saveAnnotations();
+                            });
+
+                            saveImageButton.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                if (!saveImageClicked) {
+                                    saveImageClicked = true;
+                                    downloadImageWithAnnotations();
+                                }
+                            });
+
+                            clearButton.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                clearAnnotations();
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                saveImageClicked = false; // Reset the flag on clear
+                            });
+
+                            strokeStyleInput.addEventListener('input', function () {
+                                strokeStyle = strokeStyleInput.value;
+                                ctx.strokeStyle = strokeStyle;
+                            });
+
+                            lineWidthInput.addEventListener('input', function () {
+                                lineWidth = parseFloat(lineWidthInput.value) || 2;
+                                ctx.lineWidth = lineWidth;
+                            });
+
+                            function startDrawing(e) {
+                                isDrawing = true;
+                                const rect = canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+
+                                ctx.beginPath();
+                                ctx.moveTo(x, y);
+
+                                // Clear previous active session annotations
+                                activeSessionAnnotations = [];
+                            }
+
+                            function draw(e) {
+                                if (!isDrawing) return;
+
+                                const rect = canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+
+                                ctx.lineTo(x, y);
+                                ctx.stroke();
+
+                                // Store points only during the active drawing session
+                                activeSessionAnnotations.push({ x, y });
+                            }
+
+                            function stopDrawing() {
+                                isDrawing = false;
+
+                                // Add the points from the active session to the main annotations array
+                                annotations = annotations.concat(activeSessionAnnotations, null);
+
+                                // Clear previous active session annotations
+                                activeSessionAnnotations = [];
+                            }
+
+                            function saveAnnotations() {
+                                localStorage.setItem('annotations', JSON.stringify(annotations.filter(point => point !== null)));
+                            }
+
+                            function loadAnnotations() {
+                                const storedAnnotations = localStorage.getItem('annotations');
+                                if (storedAnnotations) {
+                                    annotations = JSON.parse(storedAnnotations);
+
+                                    // Redraw connected annotations
+                                    ctx.beginPath();
+                                    for (let i = 0; i < annotations.length; i++) {
+                                        if (annotations[i] === null) {
+                                            ctx.stroke(); // Stroke the path before null (break)
+                                            ctx.beginPath();
+                                        } else {
+                                            ctx.lineTo(annotations[i].x, annotations[i].y);
+                                        }
+                                    }
+
+                                    ctx.strokeStyle = strokeStyle;
+                                    ctx.lineWidth = lineWidth;
+                                    ctx.stroke();
+                                }
+                            }
+
+                            function clearAnnotations() {
+                                annotations = [];
+                                localStorage.removeItem('annotations');
+                                saveImageClicked = false; // Reset the flag on clear
+                            }
+
+
+function downloadImageWithAnnotations() {
+    const combinedCanvas = document.createElement('canvas');
+    combinedCanvas.width = image.width;
+    combinedCanvas.height = image.height;
+    const combinedCtx = combinedCanvas.getContext('2d');
+
+    // Draw original image on the combined canvas
+    combinedCtx.drawImage(image, 0, 0, combinedCanvas.width, combinedCanvas.height);
+
+    // Set styles for annotations
+    combinedCtx.strokeStyle = strokeStyle;
+    combinedCtx.lineWidth = lineWidth;
+
+    // Draw connected annotations on top
+    combinedCtx.beginPath();
+    for (let i = 0; i < annotations.length; i++) {
+        if (annotations[i] === null) {
+            combinedCtx.stroke(); // Stroke the path before null (break)
+            combinedCtx.beginPath();
+        } else {
+            combinedCtx.lineTo(annotations[i].x, annotations[i].y);
+        }
+    }
+
+    combinedCtx.stroke();
+
+    // Trigger download
+    const dataUrl = combinedCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'image_with_annotations.png';
+    link.click();
+
+    saveImageClicked = false; // Reset the flag after download
+}
+
+                        };
                     };
 
                     reader.readAsDataURL(file);
                 }
             });
+        });
+    </script>
+
+     <script>
+        // Your existing JavaScript code
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then((registration) => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch((error) => {
+                    console.error('Service Worker registration failed:', error);
+                });
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            event.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = event;
+            // Update UI to notify the user they can add to home screen
+            showInstallButton();
         });
     </script>
 </body>
