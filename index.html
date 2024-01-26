@@ -10,14 +10,18 @@
             margin: 0;
             padding: 0;
             display: flex;
-            justify-content: center;
+            flex-direction: column; /* Adjust to column layout */
             align-items: center;
-            height: auto;
+            height: 100vh;
             background-color: #f5f5f5;
         }
 
         .container {
             text-align: center;
+            flex: 1; /* Fill remaining vertical space */
+            display: flex;
+            flex-direction: column; /* Adjust to column layout */
+            justify-content: space-between; /* Place content at the top and bottom */
         }
 
         .upload-container {
@@ -78,57 +82,34 @@
             color: #fff;
             margin-left: 10px;
         }
+
         @media screen and (max-width: 600px) {
-    body {
-        padding: 10px; /* Adjust the padding for small screens */
-    }
+            .upload-btn {
+                padding: 8px 12px;
+            }
 
-    .container {
-        text-align: center;
-    }
+            .image-preview {
+                margin-top: 10px;
+            }
 
-    .upload-btn {
-        padding: 8px 12px; /* Adjust button padding for small screens */
-    }
+            .controls {
+                margin-top: 5px;
+            }
 
-    .image-preview {
-        margin-top: 10px; /* Adjust margin for the image preview */
-    }
+            .control-label {
+                margin-right: 5px;
+            }
 
-    img {
-        max-width: 100%;
-    }
-
-    canvas {
-        cursor: pointer;
-    }
-
-    .controls {
-        margin-top: 5px; /* Adjust margin for the controls */
-    }
-
-    .control-label {
-        margin-right: 5px; /* Adjust margin for control labels */
-    }
-
-    .save-btn,
-    .clear-btn {
-        padding: 6px 12px; /* Adjust button padding for small screens */
-        margin-top: 5px; /* Adjust margin for buttons */
-    }
-}
-
+            .save-btn,
+            .clear-btn {
+                padding: 6px 12px;
+                margin-top: 5px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Image Annotator App</h1>
-        <div class="upload-container">
-            <label for="imageInput" class="upload-btn">
-                Choose Image
-            </label>
-            <input type="file" id="imageInput" accept="image/*" style="display: none;">
-        </div>
         <div class="image-preview" id="imagePreview"></div>
 
         <div class="controls">
@@ -142,6 +123,13 @@
         <button class="save-btn" id="saveAnnotationsButton">Save Annotations</button>
         <button class="save-btn" id="saveImageButton">Save Image</button>
         <button class="clear-btn" id="clearButton">Clear Annotations</button>
+    </div>
+
+    <div class="upload-container">
+        <label for="imageInput" class="upload-btn">
+            Choose Image
+        </label>
+        <input type="file" id="imageInput" accept="image/*" style="display: none;">
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
