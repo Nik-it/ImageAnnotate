@@ -145,193 +145,212 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const imageInput = document.getElementById('imageInput');
-            const imagePreview = document.getElementById('imagePreview');
-            const saveAnnotationsButton = document.getElementById('saveAnnotationsButton');
-            const saveImageButton = document.getElementById('saveImageButton');
-            const clearButton = document.getElementById('clearButton');
-            const strokeStyleInput = document.getElementById('strokeStyleInput');
-            const lineWidthInput = document.getElementById('lineWidthInput');
-            let isDrawing = false;
-            let image;
-            let annotations = [];
-            let activeSessionAnnotations = []; // Store points only during the active drawing session
-            let strokeStyle = '#ff0000'; // Default stroke style
-            let lineWidth = 2; // Default line width
-            let saveImageClicked = false;
+    const imageInput = document.getElementById('imageInput');
+    const imagePreview = document.getElementById('imagePreview');
+    const saveAnnotationsButton = document.getElementById('saveAnnotationsButton');
+    const saveImageButton = document.getElementById('saveImageButton');
+    const clearButton = document.getElementById('clearButton');
+    const strokeStyleInput = document.getElementById('strokeStyleInput');
+    const lineWidthInput = document.getElementById('lineWidthInput');
+    let isDrawing = false;
+    let image;
+    let annotations = [];
+    let activeSessionAnnotations = [];
+    let strokeStyle = '#ff0000';
+    let lineWidth = 2;
+    let saveImageClicked = false;
 
-            imageInput.addEventListener('change', function () {
-                const file = imageInput.files[0];
+    imageInput.addEventListener('change', function () {
+        const file = imageInput.files[0];
 
-                if (file) {
-                    const reader = new FileReader();
+        if (file) {
+            const reader = new FileReader();
 
-                    reader.onload = function (e) {
-                        const imageUrl = e.target.result;
-                        image = new Image();
-                        image.src = imageUrl;
+            reader.onload = function (e) {
+                const imageUrl = e.target.result;
+                image = new Image();
+                image.src = imageUrl;
 
-                        image.onload = function () {
-                            imagePreview.innerHTML = '';
-                            imagePreview.appendChild(image);
+                image.onload = function () {
+                    imagePreview.innerHTML = '';
+                    imagePreview.appendChild(image);
 
-                            const canvas = document.createElement('canvas');
-                            canvas.width = image.width;
-                            canvas.height = image.height;
-                            imagePreview.appendChild(canvas);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    imagePreview.appendChild(canvas);
 
-                            const ctx = canvas.getContext('2d');
+                    const ctx = canvas.getContext('2d');
 
-                            loadAnnotations();
+                    loadAnnotations();
 
-                            canvas.addEventListener('mousedown', startDrawing);
-                            canvas.addEventListener('mousemove', draw);
-                            canvas.addEventListener('mouseup', stopDrawing);
-                            canvas.addEventListener('mouseout', stopDrawing);
+                    canvas.addEventListener('mousedown', startDrawing);
+                    canvas.addEventListener('mousemove', draw);
+                    canvas.addEventListener('mouseup', stopDrawing);
+                    canvas.addEventListener('mouseout', stopDrawing);
 
-                            saveAnnotationsButton.addEventListener('click', function (e) {
-                                e.preventDefault();
-                                saveAnnotations();
-                            });
+                    // Touch events for mobile devices
+                    canvas.addEventListener('touchstart', handleTouchStart);
+                    canvas.addEventListener('touchmove', handleTouchMove);
+                    canvas.addEventListener('touchend', stopDrawing);
 
-                            saveImageButton.addEventListener('click', function (e) {
-                                e.preventDefault();
-                                if (!saveImageClicked) {
-                                    saveImageClicked = true;
-                                    downloadImageWithAnnotations();
-                                }
-                            });
+                    saveAnnotationsButton.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        saveAnnotations();
+                    });
 
-                            clearButton.addEventListener('click', function (e) {
-                                e.preventDefault();
-                                clearAnnotations();
-                                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                saveImageClicked = false; // Reset the flag on clear
-                            });
+                    saveImageButton.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        if (!saveImageClicked) {
+                            saveImageClicked = true;
+                            downloadImageWithAnnotations();
+                        }
+                    });
 
-                            strokeStyleInput.addEventListener('input', function () {
-                                strokeStyle = strokeStyleInput.value;
-                                ctx.strokeStyle = strokeStyle;
-                            });
+                    clearButton.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        clearAnnotations();
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        saveImageClicked = false;
+                    });
 
-                            lineWidthInput.addEventListener('input', function () {
-                                lineWidth = parseFloat(lineWidthInput.value) || 2;
-                                ctx.lineWidth = lineWidth;
-                            });
+                    strokeStyleInput.addEventListener('input', function () {
+                        strokeStyle = strokeStyleInput.value;
+                        ctx.strokeStyle = strokeStyle;
+                    });
 
-                            function startDrawing(e) {
-                                isDrawing = true;
-                                const rect = canvas.getBoundingClientRect();
-                                const x = e.clientX - rect.left;
-                                const y = e.clientY - rect.top;
+                    lineWidthInput.addEventListener('input', function () {
+                        lineWidth = parseFloat(lineWidthInput.value) || 2;
+                        ctx.lineWidth = lineWidth;
+                    });
 
-                                ctx.beginPath();
-                                ctx.moveTo(x, y);
+                    function startDrawing(e) {
+                        isDrawing = true;
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
 
-                                // Clear previous active session annotations
-                                activeSessionAnnotations = [];
-                            }
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
 
-                            function draw(e) {
-                                if (!isDrawing) return;
+                        activeSessionAnnotations = [];
+                    }
 
-                                const rect = canvas.getBoundingClientRect();
-                                const x = e.clientX - rect.left;
-                                const y = e.clientY - rect.top;
+                    function draw(e) {
+                        if (!isDrawing) return;
 
-                                ctx.lineTo(x, y);
-                                ctx.stroke();
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
 
-                                // Store points only during the active drawing session
-                                activeSessionAnnotations.push({ x, y });
-                            }
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
 
-                            function stopDrawing() {
-                                isDrawing = false;
+                        activeSessionAnnotations.push({ x, y });
+                    }
 
-                                // Add the points from the active session to the main annotations array
-                                annotations = annotations.concat(activeSessionAnnotations, null);
+                    function handleTouchStart(e) {
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const x = touch.clientX - rect.left;
+                        const y = touch.clientY - rect.top;
 
-                                // Clear previous active session annotations
-                                activeSessionAnnotations = [];
-                            }
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
 
-                            function saveAnnotations() {
-                                localStorage.setItem('annotations', JSON.stringify(annotations.filter(point => point !== null)));
-                            }
+                        activeSessionAnnotations = [];
+                    }
 
-                            function loadAnnotations() {
-                                const storedAnnotations = localStorage.getItem('annotations');
-                                if (storedAnnotations) {
-                                    annotations = JSON.parse(storedAnnotations);
+                    function handleTouchMove(e) {
+                        e.preventDefault();
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const x = touch.clientX - rect.left;
+                        const y = touch.clientY - rect.top;
 
-                                    // Redraw connected annotations
-                                    ctx.beginPath();
-                                    for (let i = 0; i < annotations.length; i++) {
-                                        if (annotations[i] === null) {
-                                            ctx.stroke(); // Stroke the path before null (break)
-                                            ctx.beginPath();
-                                        } else {
-                                            ctx.lineTo(annotations[i].x, annotations[i].y);
-                                        }
-                                    }
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
 
-                                    ctx.strokeStyle = strokeStyle;
-                                    ctx.lineWidth = lineWidth;
+                        activeSessionAnnotations.push({ x, y });
+                    }
+
+                    function stopDrawing() {
+                        isDrawing = false;
+
+                        annotations = annotations.concat(activeSessionAnnotations, null);
+                        activeSessionAnnotations = [];
+                    }
+
+                    function saveAnnotations() {
+                        localStorage.setItem('annotations', JSON.stringify(annotations.filter(point => point !== null)));
+                    }
+
+                    function loadAnnotations() {
+                        const storedAnnotations = localStorage.getItem('annotations');
+                        if (storedAnnotations) {
+                            annotations = JSON.parse(storedAnnotations);
+
+                            ctx.beginPath();
+                            for (let i = 0; i < annotations.length; i++) {
+                                if (annotations[i] === null) {
                                     ctx.stroke();
+                                    ctx.beginPath();
+                                } else {
+                                    ctx.lineTo(annotations[i].x, annotations[i].y);
                                 }
                             }
 
-                            function clearAnnotations() {
-                                annotations = [];
-                                localStorage.removeItem('annotations');
-                                saveImageClicked = false; // Reset the flag on clear
+                            ctx.strokeStyle = strokeStyle;
+                            ctx.lineWidth = lineWidth;
+                            ctx.stroke();
+                        }
+                    }
+
+                    function clearAnnotations() {
+                        annotations = [];
+                        localStorage.removeItem('annotations');
+                        saveImageClicked = false;
+                    }
+
+                    function downloadImageWithAnnotations() {
+                        const downloadCanvas = document.createElement('canvas');
+                        downloadCanvas.width = image.width;
+                        downloadCanvas.height = image.height;
+                        const downloadCtx = downloadCanvas.getContext('2d');
+
+                        downloadCtx.drawImage(image, 0, 0, downloadCanvas.width, downloadCanvas.height);
+
+                        downloadCtx.strokeStyle = strokeStyle;
+                        downloadCtx.lineWidth = lineWidth;
+
+                        downloadCtx.beginPath();
+                        for (let i = 0; i < annotations.length; i++) {
+                            if (annotations[i] === null) {
+                                downloadCtx.stroke();
+                                downloadCtx.beginPath();
+                            } else {
+                                downloadCtx.lineTo(annotations[i].x, annotations[i].y);
                             }
+                        }
 
+                        downloadCtx.stroke();
 
-function downloadImageWithAnnotations() {
-    const combinedCanvas = document.createElement('canvas');
-    combinedCanvas.width = image.width;
-    combinedCanvas.height = image.height;
-    const combinedCtx = combinedCanvas.getContext('2d');
+                        const dataUrl = downloadCanvas.toDataURL('image/png');
+                        const link = document.createElement('a');
+                        link.href = dataUrl;
+                        link.download = 'image_with_annotations.png';
+                        link.click();
 
-    // Draw original image on the combined canvas
-    combinedCtx.drawImage(image, 0, 0, combinedCanvas.width, combinedCanvas.height);
+                        saveImageClicked = false;
+                    }
+                };
+            };
 
-    // Set styles for annotations
-    combinedCtx.strokeStyle = strokeStyle;
-    combinedCtx.lineWidth = lineWidth;
-
-    // Draw connected annotations on top
-    combinedCtx.beginPath();
-    for (let i = 0; i < annotations.length; i++) {
-        if (annotations[i] === null) {
-            combinedCtx.stroke(); // Stroke the path before null (break)
-            combinedCtx.beginPath();
-        } else {
-            combinedCtx.lineTo(annotations[i].x, annotations[i].y);
+            reader.readAsDataURL(file);
         }
-    }
+    });
+});
 
-    combinedCtx.stroke();
-
-    // Trigger download
-    const dataUrl = combinedCanvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = 'image_with_annotations.png';
-    link.click();
-
-    saveImageClicked = false; // Reset the flag after download
-}
-
-                        };
-                    };
-
-                    reader.readAsDataURL(file);
-                }
-            });
-        });
     </script>
 
      <script>
