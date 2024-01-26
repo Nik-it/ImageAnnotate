@@ -1,0 +1,16 @@
+{
+    "name": "Image Annotator App",
+    "short_name": "Annotator App",
+    "description": "Annotate images with ease",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#f5f5f5",
+    "theme_color": "#3498db",
+    "icons": [
+        {
+            "src": "path/to/icon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}
